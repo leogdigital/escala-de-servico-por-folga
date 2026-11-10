@@ -140,11 +140,27 @@ python3 teste_servidor.py
 
 ## Docker
 
-The repository includes a `Dockerfile`. Build and run:
+Docker is optional. systemd is the recommended mode on Linux, and you do not
+need Docker Compose: this is a single container.
+
+First clone the repository and enter the folder (step 2 of Quick start). You do
+not need Python for the Docker path. The repository includes a `Dockerfile`.
+Build the image from inside the project folder:
 
 ```
 docker build -t escala-de-servico-por-folga .
+```
+
+The dot is the build context, the current folder. It is not a typo. Then run:
+
+```
 docker run --rm -p 127.0.0.1:8770:8770 escala-de-servico-por-folga
+```
+
+Open:
+
+```
+http://127.0.0.1:8770/
 ```
 
 The `PERMITIR` list inside the container needs the Docker bridge gateway

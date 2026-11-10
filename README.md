@@ -413,26 +413,37 @@ servidor. Se mexeu no `app.js`, rode os dois e abra a tela para conferir.
 
 ## 14. Docker (opcional)
 
-O modo recomendado em servidor Linux é o systemd. Se você preferir Docker, o
-repositório já tem um `Dockerfile`.
+O modo recomendado em servidor Linux é o systemd. O Docker é uma alternativa
+para quem não quer instalar Python. **Não precisa de Docker Compose**: é um
+único container.
 
-Copie e cole para construir a imagem:
+1. Clone o repositório e entre na pasta, como no passo 2 da seção 5. Para Docker,
+   não precisa do passo 1 nem do passo 3, ou seja, não precisa instalar Python.
+
+2. Confirme que você está na pasta do projeto, onde está o `Dockerfile`.
+
+3. Construa a imagem. Copie e cole no terminal. O ponto no final é o contexto
+   de build, a pasta atual, não é erro de digitação:
 
 ```
 docker build -t escala-de-servico-por-folga .
 ```
 
-Depois rode:
+4. Rode o container. Copie e cole:
 
 ```
 docker run --rm -p 127.0.0.1:8770:8770 escala-de-servico-por-folga
 ```
 
-Abra:
+5. Abra:
 
 ```
 http://127.0.0.1:8770/
 ```
+
+O `docker build` só cria a imagem. O `docker run` é que sobe o app. A imagem
+não vem pronta de um registro; o `Dockerfile` copia o código da pasta para
+dentro dela, por isso o clone é obrigatório.
 
 Os IPs `172.17.0.1` e `127.0.0.1` no `Dockerfile` são padrões do Docker e do
 próprio computador, não são IPs seus. O `172.17.0.1` é o gateway padrão da rede
@@ -443,8 +454,9 @@ docker network inspect bridge
 ```
 
 Para acessar de outros computadores com o IP real, use `--network host` no
-Linux e ajuste o `PERMITIR` para os IPs dos clientes. No Windows e no macOS, o
-caminho mais simples é rodar com Python.
+Linux e ajuste o `PERMITIR`. Com `-p`, o app vê o gateway do Docker, não o IP
+do cliente, então a lista `PERMITIR` não distingue quem está na rede. No
+Windows e no macOS, o caminho mais simples para uso local é rodar com Python.
 
 ## 15. Autoria e transparência
 
