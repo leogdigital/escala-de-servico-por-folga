@@ -398,7 +398,7 @@ Copie e cole:
 python3 teste_servidor.py
 ```
 
-Resultado esperado: 9 testes e `OK`. Ele confere o portão de IP, o upload e a
+Resultado esperado: 17 testes e `OK`. Ele confere o portão de IP, o Host, o upload e a
 geração do xlsx.
 
 ### O que cada teste cobre
@@ -432,7 +432,7 @@ docker build -t escala-de-servico-por-folga .
 4. Rode o container. Copie e cole:
 
 ```
-docker run --rm -p 127.0.0.1:8770:8770 escala-de-servico-por-folga
+docker run --rm -p 127.0.0.1:8770:8770 --read-only --tmpfs /tmp --cap-drop=ALL --security-opt no-new-privileges escala-de-servico-por-folga
 ```
 
 5. Abra:

@@ -103,6 +103,62 @@ class ServidorTestCase(unittest.TestCase):
         self.assertEqual(r.status, 415)
         self.assertIn('application/json', texto.decode('utf-8'))
 
+    def test_recusa_host_desconhecido(self):
+        c = http.client.HTTPConnection('127.0.0.1', self.porta, timeout=15)
+        c.request('GET', '/', headers={'Host': 'attacker.example'})
+        r = c.getresponse()
+        texto = r.read()
+        c.close()
+        self.assertEqual(r.status, 403)
+        self.assertIn('Acesso restrito', texto.decode('utf-8'))
+
+    def test_content_length_negativo(self):
+        import socket
+        s = socket.create_connection(('127.0.0.1', self.porta), timeout=15)
+        s.sendall(b'POST /api/preview HTTP/1.1\r\nHost: 127.0.0.1\r\n'
+                  b'Content-Type: application/json\r\n'
+                  b'Content-Length: -1\r\n\r\n{}')
+        data = s.recv(4096)
+        s.close()
+        self.assertIn(b'413', data)
+
+    def test_corpo_json_nao_objeto(self):
+        status, _, _ = self.pedir('POST', '/api/preview', [])
+        self.assertEqual(status, 400)
+
+    def test_config_nao_objeto(self):
+        status, _, _ = self.pedir('POST', '/api/preview',
+                                  {'config': 'x', 'militares': MIL})
+        self.assertEqual(status, 400)
+
+    def test_mes_invalido(self):
+        status, _, _ = self.pedir('POST', '/api/preview', {
+            'config': {'mes': '13/2026', 'feriados': []},
+            'militares': MIL})
+        self.assertEqual(status, 400)
+
+    def test_intervalo_de_datas_gigante(self):
+        status, _, _ = self.pedir('POST', '/api/preview', {
+            'config': {'mes': '09/2026',
+                       'feriados': [{'data': '01/01/1900-31/12/2026',
+                                     'desc': ''}]},
+            'militares': MIL})
+        self.assertEqual(status, 400)
+
+    def test_muitos_militares(self):
+        mils = [{'nome': f'M{i}', 'posto': 'Cap', 'forca': 'EB'}
+                for i in range(1001)]
+        status, _, _ = self.pedir('POST', '/api/preview',
+                                  {'config': CFG_SEP, 'militares': mils})
+        self.assertEqual(status, 400)
+
+    def test_desempate_infinito(self):
+        status, _, _ = self.pedir('POST', '/api/preview', {
+            'config': CFG_SEP,
+            'militares': [{'nome': 'A', 'posto': 'Cap', 'forca': 'EB',
+                           'desempate': float('inf')}]})
+        self.assertEqual(status, 400)
+
     # ---------------- geração ----------------
 
     def test_gerar_devolve_xlsx_valido(self):

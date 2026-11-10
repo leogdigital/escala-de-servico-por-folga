@@ -184,6 +184,8 @@ def parse_datas(tok, ano, mes, allow_prev_year=False):
         da = _data_flex(a.strip(), ano, mes, allow_prev_year)
         db = _data_flex(b.strip(), ano, mes, allow_prev_year)
         if da and db and db >= da:
+            if (db - da).days > 366:
+                raise ValueError('Intervalo de datas muito longo (máximo 366 dias).')
             out, d = [], da
             while d <= db:
                 out.append(d)
@@ -231,6 +233,8 @@ def parse_indisponibilidade(texto, ano, mes):
         antes = len(datas)
         for d in parse_datas(tok, ano, mes):
             datas.add(d)
+        if len(datas) > 2000:
+            raise ValueError('Indisponibilidade com datas demais (máximo 2000).')
         if len(datas) == antes:
             raise ValueError(f'Indisponibilidade não reconhecida: {tok!r}. '
                              f'Use datas (10/09, 10out, 10 de outubro, 10), '
@@ -274,7 +278,10 @@ def validar_mes(cfg, erros):
         return None
     try:
         mm, aa = mes_txt.strip().split('/')
-        cfg['mes'] = (int(aa), int(mm))
+        mm, aa = int(mm), int(aa)
+        if not (1 <= mm <= 12) or not (1900 <= aa <= 9999):
+            raise ValueError
+        cfg['mes'] = (aa, mm)
         return cfg['mes']
     except ValueError:
         erros.append(f'Configuração "Mês (mm/aaaa)" inválida: {mes_txt!r}')
@@ -305,6 +312,8 @@ def _itens_para_texto(item_list):
     '07/09 (Independência); 08/09'."""
     partes = []
     for it in item_list or []:
+        if not isinstance(it, dict):
+            continue
         data = str(it.get('data') or '').strip()
         desc = str(it.get('desc') or '').strip()
         if data:
@@ -317,7 +326,14 @@ def entrada_json(cfg_raw, mil_raw):
     (cfg, militares, erros). cfg_raw: {titulo1, titulo2, mes, feriados}
     Feriados podem ser texto (formato antigo) ou listas com descrição."""
     erros = []
-    cfg_raw = cfg_raw or {}
+    if not isinstance(cfg_raw, dict):
+        cfg_raw = {}
+    if mil_raw is None:
+        mil_raw = []
+    if not isinstance(mil_raw, list):
+        return {}, [], ['Lista de militares inválida.']
+    if len(mil_raw) > 1000:
+        return {}, [], ['Muitos militares (máximo 1000).']
     fer_txt = cfg_raw.get('feriados')
     if not isinstance(fer_txt, str):
         fer_txt = _itens_para_texto(fer_txt)
@@ -329,7 +345,10 @@ def entrada_json(cfg_raw, mil_raw):
     }
     validar_mes(cfg, erros)
     militares = []
-    for i, row in enumerate(mil_raw or [], 1):
+    for i, row in enumerate(mil_raw, 1):
+        if not isinstance(row, dict):
+            erros.append(f'Militar {i}: dados inválidos.')
+            continue
         nome = str(row.get('nome') or '').strip()
         posto_txt = str(row.get('posto') or '').strip()
         forca_txt = str(row.get('forca') or '').strip()
@@ -353,7 +372,7 @@ def entrada_json(cfg_raw, mil_raw):
         if desempate_txt:
             try:
                 m['desempate'] = int(float(desempate_txt.replace(',', '.')))
-            except ValueError:
+            except (ValueError, OverflowError):
                 erros.append(f'Militar {i} ({nome}): DESEMPATE deve ser número '
                              f'(menor = mais moderno).')
                 continue
@@ -442,11 +461,17 @@ def config_datas(cfg):
                 continue
             mdesc = re.search(r'\(\s*([^)]+?)\s*\)', tok)
             desc = mdesc.group(1).strip() if mdesc else ''
-            for d in parse_datas(tok, ano, mes):
+            try:
+                datas = parse_datas(tok, ano, mes)
+            except ValueError as e:
+                raise ValueError(f'Feriado {tok!r}: {e}') from e
+            for d in datas:
                 if d.year == ano and d.month == mes and d not in feriados:
                     feriados.add(d)
                     if desc:
                         desc_fer[d] = desc
+            if len(feriados) > 2000:
+                raise ValueError('Feriados com datas demais (máximo 2000).')
     cfg['_feriados'] = feriados
     cfg['_feriados_desc'] = desc_fer
     return feriados
@@ -541,7 +566,7 @@ def computar(cfg, militares, feriados):
                 continue
             try:
                 cont[serie] = int(float(f))
-            except ValueError:
+            except (ValueError, OverflowError):
                 aviso.append(f'{m["nome"]}: folga inicial {campo}={f!r} '
                              f'inválida — ignorada')
         m['cont'] = cont
@@ -960,7 +985,7 @@ def importar_folgas(caminho, ano, mes, militares):
     try:
         with zipfile.ZipFile(caminho) as z:
             total = sum(i.file_size for i in z.infolist())
-            if total > 50 * 1024 * 1024:
+            if total > 10 * 1024 * 1024:
                 return [], [], ('Planilha grande demais depois de descompactada '
                                 f'({total} bytes).')
     except (zipfile.BadZipFile, OSError):
@@ -1144,7 +1169,7 @@ def _folgas_da_linha(ws, r, cols, series=None):
         else:
             try:
                 valor = int(float(str(v).replace(',', '.')))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
         serie = (series or {}).get(c) or ('ve' if dd.weekday() >= 5 else 'pr')
         if serie not in folga:

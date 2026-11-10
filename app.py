@@ -31,7 +31,28 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 HOST = os.environ.get('HOST', '127.0.0.1')
 PORT = int(os.environ.get('PORT', '8770'))
 MAX_BODY = 5 * 1024 * 1024
+MAX_MILITARES = 1000
 PERMITIR_PADRAO = '127.0.0.1'
+_HOSTS_CACHE = None
+
+
+def hosts_permitidos():
+    """Nomes de Host aceitos: loopback, IP local e HOSTS (separado por vírgula)."""
+    global _HOSTS_CACHE
+    if _HOSTS_CACHE is None:
+        ok = {'localhost', '127.0.0.1', '[::1]'}
+        if HOST not in ('0.0.0.0', '::'):
+            ok.add(HOST.strip().lower())
+        try:
+            local = ip_local()
+            if local:
+                ok.add(local.lower())
+        except Exception:
+            pass
+        extra = os.environ.get('HOSTS', '')
+        ok.update(h.strip().lower() for h in extra.split(',') if h.strip())
+        _HOSTS_CACHE = ok
+    return _HOSTS_CACHE
 
 
 def permitidos():
@@ -93,14 +114,28 @@ class Handler(BaseHTTPRequestHandler):
     def _404(self):
         self._send(404, 'text/plain; charset=utf-8', b'nao encontrado')
 
-    def _bloqueado(self):
-        """403 para quem não está na lista de IPs autorizados (fail-closed)."""
-        ip = self.client_address[0]
-        if ip in permitidos():
+    def _host_ok(self):
+        host = (self.headers.get('Host') or '').strip().lower()
+        if not host:
             return False
-        sys.stderr.write('[app] BLOQUEADO %s -> %s\n' % (ip, self.path))
-        self._send(403, 'text/html; charset=utf-8', pagina_403(ip))
-        return True
+        if host.startswith('['):
+            host = host.split(']', 1)[0] + ']'
+        else:
+            host = host.split(':', 1)[0]
+        return host in hosts_permitidos()
+
+    def _bloqueado(self):
+        """403 para IP fora da lista ou Host fora da lista (fail-closed)."""
+        ip = self.client_address[0]
+        if ip not in permitidos():
+            sys.stderr.write('[app] BLOQUEADO %s -> %s\n' % (ip, self.path))
+            self._send(403, 'text/html; charset=utf-8', pagina_403(ip))
+            return True
+        if not self._host_ok():
+            sys.stderr.write('[app] HOST BLOQUEADO %s -> %s\n' % (ip, self.path))
+            self._send(403, 'text/html; charset=utf-8', pagina_403(ip))
+            return True
+        return False
 
     def do_GET(self):
         if self._bloqueado():
@@ -139,18 +174,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(415, {'erros': ['Content-Type deve ser application/json.']})
         try:
             n = int(self.headers.get('Content-Length') or 0)
-            if n > MAX_BODY:
+            if n < 0 or n > MAX_BODY:
                 return self._json(413, {'erros': ['Requisição muito grande.']})
             raw = self.rfile.read(n) or b'{}'
             payload = json.loads(raw.decode('utf-8'))
         except Exception as e:
             return self._json(400, {'erros': [f'JSON inválido: {e}']})
 
+        if not isinstance(payload, dict):
+            return self._json(400, {'erros': ['Corpo JSON deve ser um objeto.']})
+
         if self.path == '/api/importar':
             b64 = str(payload.get('arquivo_b64') or '')
             ref = str(payload.get('mes_ref') or '')
             militares = []
-            for n in (payload.get('militares') or []):
+            mil_list = payload.get('militares') or []
+            if not isinstance(mil_list, list):
+                return self._json(400, {'erros': ['Lista "militares" inválida.']})
+            if len(mil_list) > MAX_MILITARES:
+                return self._json(400, {'erros': [f'Muitos militares (máximo {MAX_MILITARES}).']})
+            for n in mil_list:
                 if not isinstance(n, dict):
                     n = {'nome': n}
                 nome = str(n.get('nome') or '').strip()
@@ -161,6 +204,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 mm, aa = ref.split('/')
                 ano, mes = int(aa), int(mm)
+                if not (1 <= mes <= 12 and 1900 <= ano <= 9999):
+                    raise ValueError
             except Exception:
                 return self._json(400, {'erros': ['Referência "mes_ref" inválida '
                                                   '(use mm/aaaa).']})
@@ -196,13 +241,28 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(mil_raw, list) or any(
                     not isinstance(x, dict) for x in mil_raw):
                 return self._json(400, {'erros': ['Lista "militares" inválida.']})
-            cfg, militares, erros = entrada_json(payload.get('config'), mil_raw)
+            if len(mil_raw) > MAX_MILITARES:
+                return self._json(400, {'erros': [f'Muitos militares (máximo {MAX_MILITARES}).']})
+            cfg_raw = payload.get('config')
+            if cfg_raw is not None and not isinstance(cfg_raw, dict):
+                return self._json(400, {'erros': ['Configuração inválida.']})
+            cfg, militares, erros = entrada_json(cfg_raw, mil_raw)
             if erros:
                 return self._json(400, {'erros': erros})
             if self.path == '/api/preview':
-                return self._json(200, visao_para(cfg, militares))
-            wb = montar_workbook(cfg, militares)
-            data = salvar_bytes(wb)
+                try:
+                    return self._json(200, visao_para(cfg, militares))
+                except ValueError as e:
+                    return self._json(400, {'erros': [str(e)]})
+                except Exception as e:
+                    return self._json(400, {'erros': [f'Falha ao calcular: {e}']})
+            try:
+                wb = montar_workbook(cfg, militares)
+                data = salvar_bytes(wb)
+            except ValueError as e:
+                return self._json(400, {'erros': [str(e)]})
+            except Exception as e:
+                return self._json(400, {'erros': [f'Falha ao gerar: {e}']})
             ano, mes = cfg['mes']
             nome = f'escala_{mes:02d}_{ano}.xlsx'
             self.send_response(200)
@@ -265,6 +325,10 @@ def main():
     else:
         print('Acesso pela rede local: use o IP desta máquina na mesma rede Wi-Fi.')
     print('IPs autorizados: ' + ', '.join(sorted(permitidos())))
+    print('Hosts aceitos: ' + ', '.join(sorted(hosts_permitidos())))
+    if HOST in ('0.0.0.0', '::') and '172.17.0.1' in permitidos():
+        print('AVISO: o gateway do Docker (172.17.0.1) está liberado; publique '
+              'com -p 127.0.0.1:8770:8770 ou ajuste PERMITIR.')
     print('Para encerrar: Ctrl+C')
     if abrir:
         webbrowser.open(url)
