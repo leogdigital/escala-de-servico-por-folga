@@ -466,11 +466,15 @@ LeoG.Digital.
 
 ## 16. Segurança
 
-O app não tem login. O controle de acesso é a lista de IPs `PERMITIR`. Por
-padrão, ele escuta apenas em `127.0.0.1`, no próprio computador.
+O app não tem login. O controle de acesso é a lista de IPs `PERMITIR`, com
+validação do `Host` (loopback, IP local e `HOSTS`). Por padrão, ele escuta
+apenas em `127.0.0.1`, no próprio computador.
 
 - Rode em rede local ou atrás de um proxy com autenticação.
 - Não exponha o app diretamente na internet.
+- `POST` exige `Content-Type: application/json`; outro tipo recebe 415.
+- Para um proxy reverso com outro nome, defina `HOSTS=nome.exemplo` (lista
+  separada por vírgula).
 - Os dados ficam no `localStorage` do navegador.
 - Não coloque `.env`, tokens, senhas ou dados pessoais no repositório.
 
