@@ -6,4 +6,4 @@ COPY . .
 RUN useradd --create-home --uid 10001 app
 USER app
 EXPOSE 8770
-CMD ["python3", "app.py", "--no-browser", "--host", "0.0.0.0", "--port", "8770", "--permitir", "172.17.0.1,127.0.0.1"]
+CMD ["python3", "app.py", "--no-browser", "--host", "0.0.0.0", "--port", "8770"]

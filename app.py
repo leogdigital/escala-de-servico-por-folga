@@ -96,6 +96,8 @@ XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 30
+
     def _begin(self, code, ctype, length):
         self.send_response(code)
         self.send_header('Content-Type', ctype)

@@ -131,6 +131,12 @@ class ServidorTestCase(unittest.TestCase):
                                   {'config': 'x', 'militares': MIL})
         self.assertEqual(status, 400)
 
+    def test_feriados_nao_iteravel(self):
+        status, _, _ = self.pedir('POST', '/api/preview', {
+            'config': {'mes': '09/2026', 'feriados': 1},
+            'militares': MIL})
+        self.assertEqual(status, 400)
+
     def test_mes_invalido(self):
         status, _, _ = self.pedir('POST', '/api/preview', {
             'config': {'mes': '13/2026', 'feriados': []},

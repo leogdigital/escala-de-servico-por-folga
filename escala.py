@@ -311,6 +311,8 @@ def _itens_para_texto(item_list):
     """Feriados [{data, desc}] da UI -> texto legível para a aba Entrada:
     '07/09 (Independência); 08/09'."""
     partes = []
+    if not isinstance(item_list, (list, tuple)):
+        return ''
     for it in item_list or []:
         if not isinstance(it, dict):
             continue
@@ -335,7 +337,10 @@ def entrada_json(cfg_raw, mil_raw):
     if len(mil_raw) > 1000:
         return {}, [], ['Muitos militares (máximo 1000).']
     fer_txt = cfg_raw.get('feriados')
-    if not isinstance(fer_txt, str):
+    if fer_txt is not None and not isinstance(fer_txt, (str, list, tuple)):
+        erros.append('Feriados inválidos.')
+        fer_txt = ''
+    elif not isinstance(fer_txt, str):
         fer_txt = _itens_para_texto(fer_txt)
     cfg = {
         'titulo 1': str(cfg_raw.get('titulo1') or 'ORGANIZAÇÃO MILITAR'),
@@ -345,10 +350,18 @@ def entrada_json(cfg_raw, mil_raw):
     }
     validar_mes(cfg, erros)
     militares = []
+    total_restr = 0
     for i, row in enumerate(mil_raw, 1):
         if not isinstance(row, dict):
             erros.append(f'Militar {i}: dados inválidos.')
             continue
+        total_restr += sum(len(str(row.get(k) or ''))
+                           for k in ('nao_escalar', 'nao_escalar_fixo',
+                                     'nao_escalar_mensal'))
+        if total_restr > 20000:
+            erros.append('Campos de indisponibilidade grandes demais '
+                         '(máximo 20000 caracteres).')
+            break
         nome = str(row.get('nome') or '').strip()
         posto_txt = str(row.get('posto') or '').strip()
         forca_txt = str(row.get('forca') or '').strip()
@@ -425,7 +438,7 @@ def ler_entrada(ws):
         if desempate_txt:
             try:
                 desempate = int(float(desempate_txt.replace(',', '.')))
-            except ValueError:
+            except (ValueError, OverflowError):
                 erro.append(f'Linha {r}: DESEMPATE deve ser número '
                             f'(menor = mais moderno). Recebido: {desempate_txt!r}')
                 continue
@@ -455,6 +468,7 @@ def config_datas(cfg):
     label = 'feriados (dd/mm; dd/mm... ou intervalos)'
     if label in cfg and cfg[label]:
         ano, mes = cfg['mes']
+        total_datas = 0
         for tok in re.split(r'[;,\n]+', str(cfg[label])):
             tok = tok.strip()
             if not tok:
@@ -465,13 +479,14 @@ def config_datas(cfg):
                 datas = parse_datas(tok, ano, mes)
             except ValueError as e:
                 raise ValueError(f'Feriado {tok!r}: {e}') from e
+            total_datas += len(datas)
+            if total_datas > 2000:
+                raise ValueError('Feriados com datas demais (máximo 2000).')
             for d in datas:
                 if d.year == ano and d.month == mes and d not in feriados:
                     feriados.add(d)
                     if desc:
                         desc_fer[d] = desc
-            if len(feriados) > 2000:
-                raise ValueError('Feriados com datas demais (máximo 2000).')
     cfg['_feriados'] = feriados
     cfg['_feriados_desc'] = desc_fer
     return feriados
@@ -1417,6 +1432,6 @@ if __name__ == '__main__':
         arquivo = sys.argv[1] if len(sys.argv) > 1 else 'entrada.xlsx'
         try:
             processar(arquivo)
-        except ValueError as e:
+        except (ValueError, OverflowError) as e:
             print('ERRO:', e, file=sys.stderr)
             sys.exit(1)

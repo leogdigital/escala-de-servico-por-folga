@@ -3,6 +3,14 @@ __pycache__
 *.pyc
 .git
 .DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets
 escala_*.xlsx
 ESCALA_*.xlsx
 SEGURANCA.md

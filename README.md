@@ -398,7 +398,7 @@ Copie e cole:
 python3 teste_servidor.py
 ```
 
-Resultado esperado: 17 testes e `OK`. Ele confere o portão de IP, o Host, o upload e a
+Resultado esperado: 18 testes e `OK`. Ele confere o portão de IP, o Host, o upload e a
 geração do xlsx.
 
 ### O que cada teste cobre
@@ -432,7 +432,7 @@ docker build -t escala-de-servico-por-folga .
 4. Rode o container. Copie e cole:
 
 ```
-docker run --rm -p 127.0.0.1:8770:8770 --read-only --tmpfs /tmp --cap-drop=ALL --security-opt no-new-privileges escala-de-servico-por-folga
+docker run --rm -p 127.0.0.1:8770:8770 -e PERMITIR=172.17.0.1,127.0.0.1 --read-only --tmpfs /tmp --cap-drop=ALL --security-opt no-new-privileges escala-de-servico-por-folga
 ```
 
 5. Abra:
@@ -445,9 +445,10 @@ O `docker build` só cria a imagem. O `docker run` é que sobe o app. A imagem
 não vem pronta de um registro; o `Dockerfile` copia o código da pasta para
 dentro dela, por isso o clone é obrigatório.
 
-Os IPs `172.17.0.1` e `127.0.0.1` no `Dockerfile` são padrões do Docker e do
-próprio computador, não são IPs seus. O `172.17.0.1` é o gateway padrão da rede
-bridge do Docker no Linux. Se a sua rede Docker for diferente, veja com:
+O comando acima define `PERMITIR` com o gateway do Docker (`172.17.0.1`) e o
+loopback (`127.0.0.1`). O `172.17.0.1` é o gateway padrão da rede bridge do
+Docker no Linux; ele só é usado porque o `-p 127.0.0.1` deixa o app acessível
+apenas pelo próprio computador. Se a sua rede Docker for diferente, veja com:
 
 ```
 docker network inspect bridge
