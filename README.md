@@ -398,7 +398,7 @@ Copie e cole:
 python3 teste_servidor.py
 ```
 
-Resultado esperado: 8 testes e `OK`. Ele confere o portão de IP, o upload e a
+Resultado esperado: 9 testes e `OK`. Ele confere o portão de IP, o upload e a
 geração do xlsx.
 
 ### O que cada teste cobre

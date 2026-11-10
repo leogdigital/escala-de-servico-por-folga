@@ -93,6 +93,16 @@ class ServidorTestCase(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('javascript', ctype)
 
+    def test_recusa_content_type_texto(self):
+        c = http.client.HTTPConnection('127.0.0.1', self.porta, timeout=15)
+        c.request('POST', '/api/preview', body=b'{}',
+                  headers={'Content-Type': 'text/plain'})
+        r = c.getresponse()
+        texto = r.read()
+        c.close()
+        self.assertEqual(r.status, 415)
+        self.assertIn('application/json', texto.decode('utf-8'))
+
     # ---------------- geração ----------------
 
     def test_gerar_devolve_xlsx_valido(self):

@@ -134,6 +134,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self._bloqueado():
             return
+        ctype = (self.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
+        if ctype != 'application/json':
+            return self._json(415, {'erros': ['Content-Type deve ser application/json.']})
         try:
             n = int(self.headers.get('Content-Length') or 0)
             if n > MAX_BODY:
