@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escala de Serviço por Folga — Organização Militar</title>
+<link rel="stylesheet" href="/static/app.css?v=1">
+<link rel="stylesheet" href="/static/vendor/flatpickr/flatpickr.min.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="topo-titulo">
+    <h1>ORGANIZAÇÃO MILITAR</h1>
+    <h2>ESCALA DE SERVIÇO POR FOLGA</h2>
+    <p>Montagem no padrão <strong>mais folgado</strong> — preta (dia útil), vermelha (fim de semana/feriado)</p>
+  </div>
+</header>
+
+<main>
+
+  <nav class="acoes">
+    <button id="btn-preview" class="primario">Pré-visualizar escala</button>
+    <button id="btn-gerar" class="secundario">Gerar planilha .xlsx</button>
+    <button id="btn-recomecar" class="secundario menor" title="Apagar a memória e recomeçar">↺ Recomeçar</button>
+    <button id="btn-exportar" class="secundario menor" title="Baixar a memória do navegador em JSON">Exportar estado</button>
+    <button id="btn-importar-estado" class="secundario menor" title="Restaurar a memória de um JSON">Importar estado</button>
+    <input id="arquivo-estado" type="file" accept=".json,application/json" hidden>
+    <span id="status" class="status" role="status"></span>
+  </nav>
+
+  <!-- ===================== BLOCO 1 ===================== -->
+  <section class="card" id="secao-config">
+    <h2><span class="etapa">1</span> Configuração do mês</h2>
+    <div class="grade-form">
+      <label>Mês
+        <input id="mes" type="month" value="2026-10">
+      </label>
+    </div>
+
+    <h3 class="sub">Feriados <button id="btn-add-feriado" class="adicionar">+ Adicionar feriado</button>
+      <span class="dica">(uma linha por feriado: data + descrição)</span></h3>
+    <div class="itens-lista" id="corpo-feriados"></div>
+
+    <h3 class="sub">Mês anterior — herança das folgas</h3>
+    <div class="linha-caminho">
+      <input id="arquivo-anterior" type="file" accept=".xlsx">
+      <button id="btn-importar" class="adicionar">Carregar folgas do mês anterior</button>
+      <button id="btn-limpar-heranca" class="adicionar">Limpar</button>
+      <span id="arquivo-anterior-nome" class="dica"></span>
+    </div>
+    <p class="nota">O app lê a origem do <strong>último dia de cada série</strong> (PRETA e VERMELHA) do mês
+      anterior na grade e traz as folgas iniciais para este mês (as folgas não começam do zero). Aceita tanto a planilha
+      antiga (aba <code>Escala</code>) quanto a <strong>gerada pelo próprio app</strong> (aba <code>Grade</code>).
+      Escolha o arquivo de novo se recarregar a página. Confira os valores e ajuste se precisar.</p>
+    <div class="tabela-wrap" id="secao-heranca" hidden>
+      <table id="tabela-heranca">
+        <thead>
+          <tr><th>Posto (grade anterior)</th><th>Nome</th><th>Folga útil</th><th>Folga fds/feriado</th><th>Últ. escala</th></tr>
+        </thead>
+        <tbody id="corpo-heranca"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== BLOCO 2 ===================== -->
+  <section class="card" id="secao-concorrentes">
+    <h2><span class="etapa">2</span> Concorrem à Escala <span id="contagem" class="contagem"></span></h2>
+    <div class="tabela-wrap">
+      <table id="tabela-concorrentes">
+        <thead>
+          <tr><th>Posto</th><th>Nome de guerra</th><th>Indisponibilidade (período)</th><th>Não escalar (mês — opcional)</th></tr>
+        </thead>
+        <tbody id="corpo-concorrentes"></tbody>
+      </table>
+    </div>
+    <p class="nota">Deixe os campos vazios para concorrer normalmente (disponível). <strong>Indisponibilidade</strong>:
+      afastamento (férias, dispensa) no período informado — no retorno ele se apresenta no 1º dia útil e só pode ser
+      escalado a partir do dia seguinte. <strong>Não escalar (mês)</strong>: dias em que não pode escalar mesmo presente
+      (não gera retorno) — pode ser usado junto com a indisponibilidade. Soma-se ao "não escalar fixo" do Quadro.
+      Formatos: <code>10-20</code>, <code>10out</code>, <code>ter; qua; qui</code>.</p>
+  </section>
+
+  <!-- ===================== BLOCO 3 ===================== -->
+  <section class="card" id="secao-quadro">
+    <h2><span class="etapa">3</span> Quadro de militares <button id="btn-add-quadro" class="adicionar">+ Inserir militar</button>
+      <button id="btn-efetivo" class="adicionar">↺ Restaurar concorrentes à escala</button></h2>
+    <div class="tabela-wrap">
+      <table id="tabela-quadro">
+        <thead>
+          <tr><th>Nome de guerra</th><th>Posto</th><th>Força</th><th>Especialidade</th><th>Não escalar (fixo)</th><th>Desempate</th><th>Observações</th><th>Novo</th><th></th></tr>
+        </thead>
+        <tbody id="corpo-quadro"></tbody>
+      </table>
+    </div>
+    <p class="nota">Posto e força definem a hierarquia no desempate (mais moderno escala). <em>Desempate</em>: número
+      menor = mais moderno (mesmo posto). <strong>Novo</strong> (marcado automaticamente ao inserir): entra na escala com
+      folga 0 e é escalado logo — não herda folgas da planilha anterior; desmarque se ele tiver histórico para herdar.</p>
+  </section>
+
+  <div id="erros" class="alert alert-erro" hidden></div>
+  <div id="avisos" class="alert alert-aviso" hidden></div>
+
+  <section class="card" id="secao-resultado" hidden>
+    <h2><span class="etapa">✓</span> Pré-visualização <button id="btn-rolar-gerar" class="secundario menor">Gerar .xlsx</button></h2>
+
+    <div id="resumo" class="resumo"></div>
+
+    <h3>Grade (dias de folga por militar)</h3>
+    <p class="legenda"><strong>D</strong> = escalado &nbsp;|&nbsp; <strong>IND</strong> = indisponível &nbsp;|&nbsp; <span class="chip chip-ve">fim de semana/feriado</span> &nbsp;|&nbsp; <span class="chip chip-ind">indisponibilidade</span></p>
+    <div class="tabela-wrap grade">
+      <div id="grade" class="grade-scroll"></div>
+    </div>
+
+    <h3>Diário (escalado por dia)</h3>
+    <div class="diario-scroll">
+      <table id="diario" class="tabela-diario"></table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Motor <code>escala.py</code> · v1 · Postos conforme Lei 6.880/1980 (Estatuto dos Militares) · Uso local
+</footer>
+
+<script src="/static/vendor/flatpickr/flatpickr.min.js"></script>
+<script src="/static/vendor/flatpickr/pt.js"></script>
+<script src="/static/app.js?v=1"></script>
+</body>
+</html>

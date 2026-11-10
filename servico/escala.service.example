@@ -1,0 +1,16 @@
+[Unit]
+Description=Escala de Serviço por Folga
+After=network.target
+
+[Service]
+Type=simple
+User=SEU_USUARIO
+Group=SEU_USUARIO
+WorkingDirectory=/caminho/do/app
+Environment=PERMITIR=127.0.0.1
+ExecStart=/usr/bin/python3 /caminho/do/app/app.py --no-browser --host 127.0.0.1 --port 8770
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
