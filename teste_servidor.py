@@ -107,30 +107,26 @@ class ServidorTestCase(unittest.TestCase):
 
     # ---------------- upload da planilha do mês anterior ----------------
 
-    def test_importar_por_upload_igual_ao_caminho(self):
+    def test_importar_por_upload(self):
         dados = planilha_setembro()
         nomes = [m['nome'] for m in MIL]
         corpo = {'mes_ref': '09/2026', 'militares': nomes}
 
-        status, _, resp_upload = self.pedir('POST', '/api/importar', dict(
+        status, _, resp = self.pedir('POST', '/api/importar', dict(
             corpo, arquivo_b64=base64.b64encode(dados).decode('ascii')))
-        self.assertEqual(status, 200, resp_upload[:200])
-        r_upload = json.loads(resp_upload)['resultados']
-
-        pasta = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, pasta, True)
-        arq = os.path.join(pasta, 'setembro.xlsx')
-        with open(arq, 'wb') as f:
-            f.write(dados)
-        status, _, resp_caminho = self.pedir('POST', '/api/importar',
-                                             dict(corpo, caminho=arq))
-        self.assertEqual(status, 200, resp_caminho[:200])
-        r_caminho = json.loads(resp_caminho)['resultados']
-
-        self.assertEqual(r_upload, r_caminho)
-        self.assertTrue(all(r['encontrado'] for r in r_upload), r_upload)
-        for r in r_upload:
+        self.assertEqual(status, 200, resp[:200])
+        resultados = json.loads(resp)['resultados']
+        self.assertTrue(all(r['encontrado'] for r in resultados), resultados)
+        for r in resultados:
             self.assertIsInstance(r['folga_util'], int)
+
+    def test_importar_sem_upload_devolve_400(self):
+        status, _, corpo = self.pedir('POST', '/api/importar',
+                                      {'mes_ref': '09/2026',
+                                       'militares': ['A'],
+                                       'caminho': '/etc/passwd'})
+        self.assertEqual(status, 400)
+        self.assertIn('Escolha a planilha', json.loads(corpo)['erros'][0])
 
     def test_upload_ilegivel_devolve_400(self):
         status, _, corpo = self.pedir('POST', '/api/importar',

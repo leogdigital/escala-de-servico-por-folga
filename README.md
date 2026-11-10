@@ -85,7 +85,7 @@ As regras principais:
 ## 4. Requisitos
 
 - Python 3.10 ou superior.
-- `openpyxl`, instalado pelo `requirements.txt`.
+- `openpyxl` e `defusedxml`, instalados pelo `requirements.txt`.
 - Um navegador atualizado.
 
 Não precisa de banco de dados, servidor web separado ou internet depois da
@@ -388,7 +388,7 @@ python3 teste.py
 ```
 
 Resultado esperado: uma linha `PASS` para cada caso e `OK` no final. Hoje são
-10 casos.
+11 casos.
 
 ### Servidor
 
@@ -398,7 +398,7 @@ Copie e cole:
 python3 teste_servidor.py
 ```
 
-Resultado esperado: 7 testes e `OK`. Ele confere o portão de IP, o upload e a
+Resultado esperado: 8 testes e `OK`. Ele confere o portão de IP, o upload e a
 geração do xlsx.
 
 ### O que cada teste cobre

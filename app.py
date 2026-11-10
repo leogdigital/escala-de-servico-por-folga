@@ -144,7 +144,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {'erros': [f'JSON inválido: {e}']})
 
         if self.path == '/api/importar':
-            caminho = str(payload.get('caminho') or '').strip()
             b64 = str(payload.get('arquivo_b64') or '')
             ref = str(payload.get('mes_ref') or '')
             militares = []
@@ -162,34 +161,29 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 return self._json(400, {'erros': ['Referência "mes_ref" inválida '
                                                   '(use mm/aaaa).']})
-            # A planilha do mês anterior chega por upload: quem usa o app está no
-            # Mac e o servidor não enxerga o disco dele. O caminho direto segue
-            # aceito para uso local (terminal, testes).
-            temporario = None
-            if b64:
-                try:
-                    dados = base64.b64decode(b64, validate=True)
-                except Exception:
-                    return self._json(400, {'erros': ['Planilha enviada ilegível.']})
-                if not dados:
-                    return self._json(400, {'erros': ['Planilha enviada está vazia.']})
-                fd, temporario = tempfile.mkstemp(prefix='escala-anterior-',
-                                                  suffix='.xlsx')
-                with os.fdopen(fd, 'wb') as f:
-                    f.write(dados)
-                caminho = temporario
-            if not caminho:
+            # A planilha do mês anterior chega por upload: o servidor não enxerga
+            # o disco de quem usa o app. Não aceite caminho de arquivo do servidor.
+            if not b64:
                 return self._json(400, {'erros': ['Escolha a planilha do mês '
                                                   'anterior (.xlsx).']})
             try:
-                resultados, extras, erro = importar_folgas(caminho, ano, mes,
+                dados = base64.b64decode(b64, validate=True)
+            except Exception:
+                return self._json(400, {'erros': ['Planilha enviada ilegível.']})
+            if not dados:
+                return self._json(400, {'erros': ['Planilha enviada está vazia.']})
+            fd, temporario = tempfile.mkstemp(prefix='escala-anterior-',
+                                              suffix='.xlsx')
+            with os.fdopen(fd, 'wb') as f:
+                f.write(dados)
+            try:
+                resultados, extras, erro = importar_folgas(temporario, ano, mes,
                                                            militares)
             finally:
-                if temporario:
-                    try:
-                        os.unlink(temporario)
-                    except OSError:
-                        pass
+                try:
+                    os.unlink(temporario)
+                except OSError:
+                    pass
             if erro:
                 return self._json(400, {'erros': [erro]})
             return self._json(200, {'resultados': resultados, 'extras': extras})

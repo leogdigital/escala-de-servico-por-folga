@@ -495,6 +495,25 @@ def main():
     assert [e1[d]['nome'] for d in d1] == [e2[d]['nome'] for d in d2]
     print('PASS ordem de exibição: posto e alfabética, sem alterar a escala.')
 
+    # ---- texto do usuário nunca vira fórmula no xlsx ----
+    import io
+    import zipfile
+    from escala import entrada_json as _entrada_json
+    from escala import montar_workbook as _montar
+    from escala import salvar_bytes as _salvar
+
+    cfg, mils, erros = _entrada_json(
+        {'mes': '11/2026', 'feriados': []},
+        [{'nome': '=1+1', 'posto': 'Cap', 'forca': 'EB',
+          'obs': '=HYPERLINK("http://example.invalid","x")'}])
+    assert not erros, erros
+    data = _salvar(_montar(cfg, mils))
+    xml = zipfile.ZipFile(io.BytesIO(data)).read(
+        'xl/worksheets/sheet1.xml').decode('utf-8')
+    assert '<f>' not in xml, xml[:800]
+    assert '=1+1' in xml, xml[:800]
+    print('PASS fórmulas do usuário ficam como texto no xlsx.')
+
     os.remove(path)
     return 0
 

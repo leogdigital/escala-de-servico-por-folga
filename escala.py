@@ -901,7 +901,23 @@ def montar_workbook(cfg, militares):
     return wb
 
 
+def _neutralizar_formulas(wb):
+    """Força texto em células que o openpyxl marcaria como fórmula ('=').
+
+    Nome, observação ou título digitado pelo usuário não pode virar fórmula
+    quando a planilha é aberta no Excel."""
+    from openpyxl.cell.cell import MergedCell
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if isinstance(cell, MergedCell):
+                    continue
+                if cell.data_type == 'f':
+                    cell.data_type = 's'
+
+
 def salvar_bytes(wb):
+    _neutralizar_formulas(wb)
     buf = io.BytesIO()
     wb.save(buf)
     # openpyxl 3.1.2 do Ubuntu grava "+00:00Z" no core.xml, que o Excel recusa
@@ -941,6 +957,14 @@ def importar_folgas(caminho, ano, mes, militares):
     anterior pode defasar a herança em 1 dia — conferir no painel.
     Retorna (resultados, extras, erro); `extras` são os militares que estão na
     planilha e não estão no quadro."""
+    try:
+        with zipfile.ZipFile(caminho) as z:
+            total = sum(i.file_size for i in z.infolist())
+            if total > 50 * 1024 * 1024:
+                return [], [], ('Planilha grande demais depois de descompactada '
+                                f'({total} bytes).')
+    except (zipfile.BadZipFile, OSError):
+        return [], [], 'Não consegui abrir a planilha: arquivo não é .xlsx válido.'
     try:
         wb = load_workbook(caminho, data_only=True)
     except Exception as e:
@@ -1276,6 +1300,7 @@ def processar(arquivo):
     ws = wb['Entrada']
     cfg, militares, _ = ler_entrada(ws)
     aviso, dias, escalados, _ = preencher_diario_grade(wb, cfg, militares)
+    _neutralizar_formulas(wb)
     wb.save(arquivo)
 
     feriados = cfg['_feriados']
